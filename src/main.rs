@@ -127,6 +127,7 @@ fn main() {
         App::new()
             .route("/", web::get().to(root_page))
             .route("/mavlink|/mavlink/*", web::get().to(mavlink_page))
+            .route("/mavlink", web::post().to(malink_post))
     })
     .bind(server_string)
     .unwrap()
@@ -211,6 +212,19 @@ fn mavlink_page(req: HttpRequest) -> impl Responder {
     }
 
     return serde_json::to_string(&final_result).unwrap().to_string();
+}
+
+#[derive(Debug, Deserialize)]
+struct MyObj {
+    pub header: mavlink::MavHeader,
+    pub message: mavlink::common::MavMessage,
+}
+
+pub fn malink_post(req: web::Json<serde_json::Value>) -> impl Responder {
+    //let j = json!({"chan10_raw":0,"chan11_raw":0,"chan12_raw":0,"chan13_raw":0,"chan14_raw":0,"chan15_raw":0,"chan16_raw":0,"chan17_raw":0,"chan18_raw":0,"chan1_raw":1500,"chan2_raw":1500,"chan3_raw":1000,"chan4_raw":1500,"chan5_raw":1800,"chan6_raw":1000,"chan7_raw":1000,"chan8_raw":1800,"chan9_raw":0,"chancount":16,"rssi":0,"time_boot_ms":3838,"type":"RC_CHANNELS"});
+    println!("> {:#?}", &req);
+    let v = serde_json::from_value::<mavlink::common::MavMessage>(req.into_inner());
+    format!("> {:#?}", v)
 }
 
 pub fn heartbeat_message() -> mavlink::common::MavMessage {
