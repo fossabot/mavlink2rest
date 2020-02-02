@@ -13,6 +13,9 @@ use serde_json::json;
 mod message_information;
 use message_information::MessageInformation;
 
+mod vehicle_handler;
+use vehicle_handler::Vehicle;
+
 use lazy_static::lazy_static;
 lazy_static! {
     static ref MESSAGES: std::sync::Arc<Mutex<serde_json::value::Value>> = {
@@ -215,12 +218,12 @@ fn mavlink_page(req: HttpRequest) -> impl Responder {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MyObj {
+pub struct MavlinkMessage {
     pub header: mavlink::MavHeader,
     pub message: mavlink::common::MavMessage,
 }
 
-pub fn malink_post(req: web::Json<MyObj>) -> impl Responder {
+pub fn malink_post(req: web::Json<MavlinkMessage>) -> impl Responder {
     //let j = json!({"chan10_raw":0,"chan11_raw":0,"chan12_raw":0,"chan13_raw":0,"chan14_raw":0,"chan15_raw":0,"chan16_raw":0,"chan17_raw":0,"chan18_raw":0,"chan1_raw":1500,"chan2_raw":1500,"chan3_raw":1000,"chan4_raw":1500,"chan5_raw":1800,"chan6_raw":1000,"chan7_raw":1000,"chan8_raw":1800,"chan9_raw":0,"chancount":16,"rssi":0,"time_boot_ms":3838,"type":"RC_CHANNELS"});
     println!("> {:#?}", &req);
     //let v = serde_json::from_value::<mavlink::common::MavMessage>(req.into_inner());
@@ -228,7 +231,7 @@ pub fn malink_post(req: web::Json<MyObj>) -> impl Responder {
     format!("> {:#?}\n > {:#?}", &content.header, &content.message)
 }
 
-pub fn heartbeat_message() -> mavlink::common::MavMessage {
+fn heartbeat_message() -> mavlink::common::MavMessage {
     mavlink::common::MavMessage::HEARTBEAT(mavlink::common::HEARTBEAT_DATA {
         custom_mode: 0,
         mavtype: mavlink::common::MavType::MAV_TYPE_QUADROTOR,
