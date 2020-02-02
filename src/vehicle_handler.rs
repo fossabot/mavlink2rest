@@ -14,7 +14,7 @@ pub struct Vehicle {
     parser_thread: thread::JoinHandle<()>,
 }
 
-struct InnerVehicle { inner: Arc<Vehicle> }
+struct InnerVehicle { inner: Arc<Mutex<Vehicle>> }
 
 impl Vehicle {
     pub fn connect(&mut self, connection_string: &str) {
