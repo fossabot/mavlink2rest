@@ -62,18 +62,27 @@ fn main() {
         let cloned_api_get_mavlink = api.clone();
         let cloned_api_post_mavlink = api.clone();
         App::new()
-            .route("/", web::get().to(move || {
-                let api = cloned_api_root.lock().unwrap();
-                api.root_page()
-            }))
-            .route("/mavlink|/mavlink/*", web::get().to(move |x| {
-                let api = cloned_api_get_mavlink.lock().unwrap();
-                api.mavlink_page(x)
-            }))
-            .route("/mavlink", web::post().to(move |x| {
-                let mut api = cloned_api_post_mavlink.lock().unwrap();
-                api.mavlink_post(x)
-            }))
+            .route(
+                "/",
+                web::get().to(move || {
+                    let api = cloned_api_root.lock().unwrap();
+                    api.root_page()
+                }),
+            )
+            .route(
+                "/mavlink|/mavlink/*",
+                web::get().to(move |x| {
+                    let api = cloned_api_get_mavlink.lock().unwrap();
+                    api.mavlink_page(x)
+                }),
+            )
+            .route(
+                "/mavlink",
+                web::post().to(move |x| {
+                    let mut api = cloned_api_post_mavlink.lock().unwrap();
+                    api.mavlink_post(x)
+                }),
+            )
     })
     .bind(server_string)
     .unwrap()

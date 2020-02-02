@@ -25,9 +25,7 @@ pub struct API {
 
 impl API {
     pub fn new(messages: Arc<Mutex<serde_json::value::Value>>) -> API {
-        API {
-            messages: messages,
-        }
+        API { messages: messages }
     }
 
     pub fn root_page(&self) -> impl Responder {
