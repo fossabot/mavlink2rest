@@ -2,37 +2,69 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-//mod message_information;
+use serde_json::json;
+
 use crate::message_information::MessageInformation;
 
-pub struct Vehicle {
-    channel: std::sync::Arc<std::boxed::Box<(dyn mavlink::MavConnection + std::marker::Send + std::marker::Sync + 'static)>>,
-    messages: std::sync::Arc<Mutex<serde_json::value::Value>>,
+// TODO: Break this in shared and not mutex shared variables
+pub struct InnerVehicle {
+    channel: Arc<Box<(dyn mavlink::MavConnection + std::marker::Send + std::marker::Sync + 'static)>>,
+    messages: Arc<Mutex<serde_json::value::Value>>,
     verbose: bool,
     // Create threads
-    heartbeat_thread: thread::JoinHandle<()>,
-    parser_thread: thread::JoinHandle<()>,
+    //heartbeat_thread: thread::JoinHandle<()>,
+    //parser_thread: thread::JoinHandle<()>,
 }
 
-struct InnerVehicle { inner: Arc<Mutex<Vehicle>> }
+pub struct Vehicle {
+    inner: Arc<Mutex<InnerVehicle>>,
+    threads: Vec<thread::JoinHandle<()>>,
+}
 
 impl Vehicle {
+    // Move arguments to struct
+    pub fn new(connection_string: &str, verbose: bool) -> Vehicle {
+        let mavlink_communication = mavlink::connect(connection_string).unwrap();
+        Vehicle {
+            inner: Arc::new(Mutex::new(InnerVehicle {
+                channel: Arc::new(mavlink_communication),
+                messages: Arc::new(Mutex::new(json!({"mavlink":{}}))),
+                verbose: verbose,
+            })),
+            threads: vec![],
+        }
+    }
+
+    /*
     pub fn connect(&mut self, connection_string: &str) {
         let mavconn = mavlink::connect(connection_string).unwrap();
         self.channel = Arc::new(mavconn);
-    }
+    }*/
 
     pub fn run(&mut self) {
-        let _ = self.channel.send_default(&Vehicle::request_stream());
-
-        self.heartbeat_thread = thread::spawn(|| {self.heartbeat_loop()});
-        self.parser_thread = thread::spawn(|| {self.parser_loop()});
+        let vehicle_mutex = Arc::clone(&self.inner);
+        self.threads.push(thread::spawn(move || {
+            let vehicle = vehicle_mutex.lock().unwrap();
+            let _ = vehicle.channel.send_default(&InnerVehicle::request_stream());
+        }));
+        let vehicle_mutex = Arc::clone(&self.inner);
+        self.threads.push(thread::spawn(move || {
+            let vehicle = vehicle_mutex.lock().unwrap();
+            vehicle.heartbeat_loop()
+        }));
+        let vehicle_mutex = Arc::clone(&self.inner);
+        self.threads.push(thread::spawn(move || {
+            let mut vehicle = vehicle_mutex.lock().unwrap();
+            vehicle.parser_loop()
+        }));
     }
+}
 
+impl InnerVehicle {
     fn heartbeat_loop(&self) {
         let vehicle = self.channel.clone();
         move || loop {
-            let res = vehicle.send_default(&Vehicle::heartbeat_message());
+            let res = vehicle.send_default(&InnerVehicle::heartbeat_message());
             if res.is_err() {
                 println!("Failed to send heartbeat");
             }
