@@ -20,7 +20,7 @@ actix-web = "1.0.8"
 chrono = { version = "0.4", features = ["serde"] }
 clap = "2.31.2"
 inner = "0.1.1"
-lazy_static = "1.4.0"
+#lazy_static = "1.4.0"
 #mavlink = "0.7"
 mavlink = { git = "https://github.com/patrickelectric/rust-mavlink", branch = "deserialize" }
 rustc-serialize = "0.3.24"

@@ -9,16 +9,16 @@ use crate::message_information::MessageInformation;
 // TODO: Break this in shared and not mutex shared variables
 pub struct InnerVehicle {
     channel: Arc<Box<(dyn mavlink::MavConnection + std::marker::Send + std::marker::Sync + 'static)>>,
-    messages: Arc<Mutex<serde_json::value::Value>>,
-    verbose: bool,
+    pub messages: Arc<Mutex<serde_json::value::Value>>,
+    verbose: Arc<bool>,
     // Create threads
     //heartbeat_thread: thread::JoinHandle<()>,
     //parser_thread: thread::JoinHandle<()>,
+    threads: Vec<thread::JoinHandle<()>>,
 }
 
 pub struct Vehicle {
-    inner: Arc<Mutex<InnerVehicle>>,
-    threads: Vec<thread::JoinHandle<()>>,
+    pub inner: Arc<Mutex<InnerVehicle>>,
 }
 
 impl Vehicle {
@@ -29,9 +29,9 @@ impl Vehicle {
             inner: Arc::new(Mutex::new(InnerVehicle {
                 channel: Arc::new(mavlink_communication),
                 messages: Arc::new(Mutex::new(json!({"mavlink":{}}))),
-                verbose: verbose,
+                verbose: Arc::new(verbose),
+                threads: vec![],
             })),
-            threads: vec![],
         }
     }
 
@@ -42,46 +42,59 @@ impl Vehicle {
     }*/
 
     pub fn run(&mut self) {
-        let vehicle_mutex = Arc::clone(&self.inner);
+        let inner = Arc::clone(&self.inner);
+        let inner = inner.lock().unwrap();
+        InnerVehicle::heartbeat_loop(&inner);
+        InnerVehicle::parser_loop(&inner);
+        //let vehicle_mutex = Arc::clone(&self.inner);
+        //let _ = vehicle_mutex.lock().unwrap().channel.send_default(&InnerVehicle::request_stream());
+        //let vehicle_mutex = Arc::clone(&self.inner);
+        /*
         self.threads.push(thread::spawn(move || {
+            println!("Start heartbeat.");
             let vehicle = vehicle_mutex.lock().unwrap();
-            let _ = vehicle.channel.send_default(&InnerVehicle::request_stream());
-        }));
+            vehicle.heartbeat_loop();
+        }));*/
+        /*
         let vehicle_mutex = Arc::clone(&self.inner);
         self.threads.push(thread::spawn(move || {
-            let vehicle = vehicle_mutex.lock().unwrap();
-            vehicle.heartbeat_loop()
-        }));
-        let vehicle_mutex = Arc::clone(&self.inner);
-        self.threads.push(thread::spawn(move || {
+            println!("Start parser.");
             let mut vehicle = vehicle_mutex.lock().unwrap();
             vehicle.parser_loop()
         }));
+        */
     }
 }
 
 impl InnerVehicle {
-    fn heartbeat_loop(&self) {
-        let vehicle = self.channel.clone();
-        move || loop {
-            let res = vehicle.send_default(&InnerVehicle::heartbeat_message());
-            if res.is_err() {
-                println!("Failed to send heartbeat");
+    fn heartbeat_loop(inner: &InnerVehicle) {
+        println!("heartbeat loop.");
+        let vehicle = inner.channel.clone();
+        thread::spawn(
+            move || loop {
+                println!(".");
+                let res = vehicle.send_default(&InnerVehicle::heartbeat_message());
+                if res.is_err() {
+                    println!("Failed to send heartbeat");
+                }
+                thread::sleep(Duration::from_secs(1));
             }
-            thread::sleep(Duration::from_secs(1));
-        };
+        );
     }
 
-    fn parser_loop(&mut self) {
-        let vehicle = self.channel.clone();
-        let messages_ref = Arc::clone(&self.messages);
+    fn parser_loop(inner: &InnerVehicle) {
+        println!("parser loop.");
+        let verbose = Arc::clone(&inner.verbose);
+        let vehicle = inner.channel.clone();
+        let messages_ref = Arc::clone(&inner.messages);
 
         let mut messages_information: std::collections::HashMap<
             std::string::String,
             MessageInformation,
         > = std::collections::HashMap::new();
-        move || {
-            loop {
+
+        thread::spawn(
+            move || loop {
                 match vehicle.recv() {
                     Ok((_header, msg)) => {
                         let value = serde_json::to_value(&msg).unwrap();
@@ -89,7 +102,7 @@ impl InnerVehicle {
                         // Remove " from string
                         let msg_type = value["type"].to_string().replace("\"", "");
                         msgs["mavlink"][&msg_type] = value;
-                        if self.verbose {
+                        if *verbose {
                             println!("Got: {}", msg_type);
                         }
 
@@ -116,7 +129,7 @@ impl InnerVehicle {
                     }
                 }
             }
-        };
+        );
     }
 
     fn heartbeat_message() -> mavlink::common::MavMessage {
