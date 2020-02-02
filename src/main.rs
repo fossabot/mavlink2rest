@@ -1,17 +1,9 @@
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
 
-use actix_web::http::StatusCode;
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use chrono;
-use chrono::offset::TimeZone;
+use actix_web::{web, App, HttpServer};
 use clap;
-use serde_derive::Deserialize;
-use serde_json::json;
 
 mod message_information;
-use message_information::MessageInformation;
 
 mod vehicle_handler;
 use vehicle_handler::Vehicle;
@@ -60,36 +52,31 @@ fn main() {
 
     let inner_vehicle = Arc::clone(&vehicle.inner);
     let inner_vehicle = inner_vehicle.lock().unwrap();
-    {
-        let api = Arc::new(Mutex::new(API::new(Arc::clone(&inner_vehicle.messages))));
+    let api = Arc::new(Mutex::new(API::new(Arc::clone(&inner_vehicle.messages))));
 
-        println!("MAVLink connection string: {}", connection_string);
-        println!("REST API address: {}", server_string);
+    println!("MAVLink connection string: {}", connection_string);
+    println!("REST API address: {}", server_string);
 
-        HttpServer::new(move || {
-            let cloned_api_root = api.clone();
-            let cloned_api_get_mavlink = api.clone();
-            let cloned_api_post_mavlink = api.clone();
-            App::new()
-                .route("/", web::get().to(move || {
-                    let api = cloned_api_root.lock().unwrap();
-                    api.root_page()
-                }))
-                .route("/mavlink|/mavlink/*", web::get().to(move |x| {
-                    let api = cloned_api_get_mavlink.lock().unwrap();
-                    api.mavlink_page(x)
-                }))
-                .route("/mavlink", web::post().to(move |x| {
-                    let mut api = cloned_api_post_mavlink.lock().unwrap();
-                    api.mavlink_post(x)
-                }))
-        })
-        .bind(server_string)
-        .unwrap()
-        .run()
-        .unwrap();
-    }
+    HttpServer::new(move || {
+        let cloned_api_root = api.clone();
+        let cloned_api_get_mavlink = api.clone();
+        let cloned_api_post_mavlink = api.clone();
+        App::new()
+            .route("/", web::get().to(move || {
+                let api = cloned_api_root.lock().unwrap();
+                api.root_page()
+            }))
+            .route("/mavlink|/mavlink/*", web::get().to(move |x| {
+                let api = cloned_api_get_mavlink.lock().unwrap();
+                api.mavlink_page(x)
+            }))
+            .route("/mavlink", web::post().to(move |x| {
+                let mut api = cloned_api_post_mavlink.lock().unwrap();
+                api.mavlink_post(x)
+            }))
+    })
+    .bind(server_string)
+    .unwrap()
+    .run()
+    .unwrap();
 }
-
-//
-                //.route("/mavlink", web::post().to(|x| {api.mavlink_post(x)}))

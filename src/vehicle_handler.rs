@@ -11,10 +11,6 @@ pub struct InnerVehicle {
     channel: Arc<Box<(dyn mavlink::MavConnection + std::marker::Send + std::marker::Sync + 'static)>>,
     pub messages: Arc<Mutex<serde_json::value::Value>>,
     verbose: Arc<bool>,
-    // Create threads
-    //heartbeat_thread: thread::JoinHandle<()>,
-    //parser_thread: thread::JoinHandle<()>,
-    threads: Vec<thread::JoinHandle<()>>,
 }
 
 pub struct Vehicle {
@@ -30,49 +26,24 @@ impl Vehicle {
                 channel: Arc::new(mavlink_communication),
                 messages: Arc::new(Mutex::new(json!({"mavlink":{}}))),
                 verbose: Arc::new(verbose),
-                threads: vec![],
             })),
         }
     }
-
-    /*
-    pub fn connect(&mut self, connection_string: &str) {
-        let mavconn = mavlink::connect(connection_string).unwrap();
-        self.channel = Arc::new(mavconn);
-    }*/
 
     pub fn run(&mut self) {
         let inner = Arc::clone(&self.inner);
         let inner = inner.lock().unwrap();
         InnerVehicle::heartbeat_loop(&inner);
         InnerVehicle::parser_loop(&inner);
-        //let vehicle_mutex = Arc::clone(&self.inner);
-        //let _ = vehicle_mutex.lock().unwrap().channel.send_default(&InnerVehicle::request_stream());
-        //let vehicle_mutex = Arc::clone(&self.inner);
-        /*
-        self.threads.push(thread::spawn(move || {
-            println!("Start heartbeat.");
-            let vehicle = vehicle_mutex.lock().unwrap();
-            vehicle.heartbeat_loop();
-        }));*/
-        /*
-        let vehicle_mutex = Arc::clone(&self.inner);
-        self.threads.push(thread::spawn(move || {
-            println!("Start parser.");
-            let mut vehicle = vehicle_mutex.lock().unwrap();
-            vehicle.parser_loop()
-        }));
-        */
+        let _ = inner.channel.send_default(&InnerVehicle::request_stream());
     }
 }
 
 impl InnerVehicle {
     fn heartbeat_loop(inner: &InnerVehicle) {
-        println!("heartbeat loop.");
         let vehicle = inner.channel.clone();
         thread::spawn(
             move || loop {
-                println!(".");
                 let res = vehicle.send_default(&InnerVehicle::heartbeat_message());
                 if res.is_err() {
                     println!("Failed to send heartbeat");
@@ -83,7 +54,6 @@ impl InnerVehicle {
     }
 
     fn parser_loop(inner: &InnerVehicle) {
-        println!("parser loop.");
         let verbose = Arc::clone(&inner.verbose);
         let vehicle = inner.channel.clone();
         let messages_ref = Arc::clone(&inner.messages);
