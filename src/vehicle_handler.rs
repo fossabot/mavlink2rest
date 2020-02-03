@@ -77,7 +77,7 @@ impl InnerVehicle {
                     // Update message_information
                     let message_information = messages_information
                         .entry(msg_type.clone())
-                        .or_insert(MessageInformation::default());
+                        .or_insert_with(MessageInformation::default);
                     message_information.update();
                     msgs["mavlink"][&msg_type]["message_information"] =
                         serde_json::to_value(messages_information[&msg_type]).unwrap();

@@ -25,7 +25,7 @@ pub struct API {
 
 impl API {
     pub fn new(messages: Arc<Mutex<serde_json::value::Value>>) -> API {
-        API { messages: messages }
+        API { messages }
     }
 
     pub fn root_page(&self) -> impl Responder {
@@ -79,7 +79,7 @@ impl API {
 
     pub fn mavlink_page(&self, req: HttpRequest) -> impl Responder {
         let query = web::Query::<JsonConfiguration>::from_query(req.query_string())
-            .unwrap_or(web::Query(Default::default()));
+            .unwrap_or_else(|_|web::Query(Default::default()));
 
         let url_path = req.path().to_string();
         let messages = Arc::clone(&self.messages);
@@ -93,13 +93,12 @@ impl API {
         let final_result = final_result.unwrap().clone();
         std::mem::drop(messages); // Remove guard after clone
 
-        if !query.pretty.is_none() && query.pretty.unwrap() {
+        if query.pretty.is_some() && query.pretty.unwrap() {
             return serde_json::to_string_pretty(&final_result)
-                .unwrap()
-                .to_string();
+                .unwrap();
         }
 
-        return serde_json::to_string(&final_result).unwrap().to_string();
+        return serde_json::to_string(&final_result).unwrap();
     }
 
     pub fn mavlink_post(&mut self, req: web::Json<MavlinkMessage>) -> impl Responder {
